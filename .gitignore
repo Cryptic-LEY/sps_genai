@@ -8,3 +8,9 @@ wheels/
 
 # Virtual environments
 .venv
+
+# CIFAR10 raw dataset (downloaded automatically, too large for git)
+data/
+
+# Intermediate per-epoch checkpoints (only checkpoints/best/model.pth is needed for the API)
+checkpoints/epoch_*.pth

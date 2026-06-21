@@ -10,4 +10,8 @@ dependencies = [
     "jupyter>=1.1.1",
     "pydantic>=2.13.4",
     "uvicorn>=0.48.0",
+    "torch>=2.0.0",
+    "torchvision>=0.15.0",
+    "tqdm>=4.65.0",
+    "pillow>=10.0.0",
 ]
