@@ -4,3 +4,4 @@ __pycache__
 .git
 data/
 checkpoints/epoch_*.pth
+checkpoints_gan/*_latest.pth

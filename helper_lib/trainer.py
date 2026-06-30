@@ -71,3 +71,68 @@ def train_model(
         )
 
     return model
+
+
+def train_gan(model, data_loader, criterion, optimizer, device="cpu", epochs=10, z_dim=100, checkpoint_dir="checkpoints"):
+    """Adversarial training loop for a GAN.
+
+    model: tuple (generator, discriminator), as returned by get_model("GAN")
+    optimizer: tuple (optimizer_g, optimizer_d)
+    """
+    generator, discriminator = model
+    optimizer_g, optimizer_d = optimizer
+
+    generator.to(device)
+    discriminator.to(device)
+
+    for epoch in range(epochs):
+        generator.train()
+        discriminator.train()
+        running_loss_g, running_loss_d = 0.0, 0.0
+
+        progress = tqdm(data_loader, desc=f"Epoch {epoch + 1}/{epochs}")
+        for real_images, _ in progress:
+            real_images = real_images.to(device)
+            batch_size = real_images.size(0)
+
+            real_labels = torch.ones(batch_size, 1, device=device)
+            fake_labels = torch.zeros(batch_size, 1, device=device)
+
+            # --- Train Discriminator ---
+            optimizer_d.zero_grad()
+
+            outputs_real = discriminator(real_images)
+            loss_real = criterion(outputs_real, real_labels)
+
+            z = torch.randn(batch_size, z_dim, device=device)
+            fake_images = generator(z)
+            outputs_fake = discriminator(fake_images.detach())
+            loss_fake = criterion(outputs_fake, fake_labels)
+
+            loss_d = loss_real + loss_fake
+            loss_d.backward()
+            optimizer_d.step()
+
+            # --- Train Generator ---
+            optimizer_g.zero_grad()
+            outputs = discriminator(fake_images)
+            loss_g = criterion(outputs, real_labels)
+            loss_g.backward()
+            optimizer_g.step()
+
+            running_loss_d += loss_d.item()
+            running_loss_g += loss_g.item()
+            progress.set_postfix({"D loss": f"{loss_d.item():.4f}", "G loss": f"{loss_g.item():.4f}"})
+
+        avg_loss_d = running_loss_d / len(data_loader)
+        avg_loss_g = running_loss_g / len(data_loader)
+
+        save_checkpoint(generator, optimizer_g, epoch + 1, avg_loss_g, 0.0, checkpoint_dir, filename="generator_latest.pth")
+        save_checkpoint(discriminator, optimizer_d, epoch + 1, avg_loss_d, 0.0, checkpoint_dir, filename="discriminator_latest.pth")
+
+        print(f"Epoch {epoch + 1}: D loss={avg_loss_d:.4f}, G loss={avg_loss_g:.4f}")
+
+    save_checkpoint(generator, optimizer_g, epochs, avg_loss_g, 0.0, checkpoint_dir=f"{checkpoint_dir}/best", filename="generator.pth")
+    save_checkpoint(discriminator, optimizer_d, epochs, avg_loss_d, 0.0, checkpoint_dir=f"{checkpoint_dir}/best", filename="discriminator.pth")
+
+    return generator, discriminator

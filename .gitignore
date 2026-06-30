@@ -14,3 +14,4 @@ data/
 
 # Intermediate per-epoch checkpoints (only checkpoints/best/model.pth is needed for the API)
 checkpoints/epoch_*.pth
+checkpoints_gan/*_latest.pth

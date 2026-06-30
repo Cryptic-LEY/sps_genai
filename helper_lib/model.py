@@ -1,3 +1,4 @@
+import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
@@ -74,6 +75,51 @@ class EnhancedCNN(nn.Module):
         return x
 
 
+class Generator(nn.Module):
+    """Generator matching the Assignment 3 spec for 28x28x1 MNIST output:
+    Linear(z_dim -> 7*7*128) -> reshape
+    ConvTranspose2d(128,64,k4,s2,p1) -> BatchNorm2d -> ReLU      (7x7 -> 14x14)
+    ConvTranspose2d(64,1,k4,s2,p1) -> Tanh                        (14x14 -> 28x28)
+    """
+
+    def __init__(self, z_dim=100):
+        super(Generator, self).__init__()
+        self.z_dim = z_dim
+        self.fc = nn.Linear(z_dim, 7 * 7 * 128)
+        self.deconv1 = nn.ConvTranspose2d(128, 64, kernel_size=4, stride=2, padding=1)
+        self.bn1 = nn.BatchNorm2d(64)
+        self.deconv2 = nn.ConvTranspose2d(64, 1, kernel_size=4, stride=2, padding=1)
+
+    def forward(self, z):
+        x = self.fc(z)
+        x = x.view(-1, 128, 7, 7)
+        x = F.relu(self.bn1(self.deconv1(x)))
+        x = torch.tanh(self.deconv2(x))
+        return x
+
+
+class Discriminator(nn.Module):
+    """Discriminator matching the Assignment 3 spec for 28x28x1 MNIST input:
+    Conv2d(1,64,k4,s2,p1) -> LeakyReLU(0.2)                       (28x28 -> 14x14)
+    Conv2d(64,128,k4,s2,p1) -> BatchNorm2d -> LeakyReLU(0.2)       (14x14 -> 7x7)
+    Flatten -> Linear(128*7*7, 1)
+    """
+
+    def __init__(self):
+        super(Discriminator, self).__init__()
+        self.conv1 = nn.Conv2d(1, 64, kernel_size=4, stride=2, padding=1)
+        self.conv2 = nn.Conv2d(64, 128, kernel_size=4, stride=2, padding=1)
+        self.bn2 = nn.BatchNorm2d(128)
+        self.fc = nn.Linear(128 * 7 * 7, 1)
+
+    def forward(self, x):
+        x = F.leaky_relu(self.conv1(x), 0.2)
+        x = F.leaky_relu(self.bn2(self.conv2(x)), 0.2)
+        x = x.view(x.size(0), -1)
+        x = self.fc(x)
+        return x
+
+
 _MODELS = {
     "FCNN": FCNN,
     "CNN": CNN,
@@ -81,7 +127,9 @@ _MODELS = {
 }
 
 
-def get_model(model_name, num_classes=10):
+def get_model(model_name, num_classes=10, z_dim=100):
+    if model_name == "GAN":
+        return Generator(z_dim=z_dim), Discriminator()
     if model_name not in _MODELS:
-        raise ValueError(f"Unknown model_name '{model_name}'. Choose from {list(_MODELS)}")
+        raise ValueError(f"Unknown model_name '{model_name}'. Choose from {list(_MODELS) + ['GAN']}")
     return _MODELS[model_name](num_classes=num_classes)
