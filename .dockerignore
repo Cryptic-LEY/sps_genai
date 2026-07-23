@@ -5,3 +5,5 @@ __pycache__
 data/
 checkpoints/epoch_*.pth
 checkpoints_gan/*_latest.pth
+checkpoints_ebm/*_latest.pth
+checkpoints_diffusion/*_latest.pth

@@ -2,6 +2,8 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+from .diffusion import UNet
+
 
 class FCNN(nn.Module):
     def __init__(self, num_classes=10):
@@ -75,6 +77,36 @@ class EnhancedCNN(nn.Module):
         return x
 
 
+def swish(x):
+    return x * torch.sigmoid(x)
+
+
+class EnergyModel(nn.Module):
+    """Energy model matching the Practical 1 (Energy Based Methods) architecture,
+    adapted for 3-channel 32x32 CIFAR-10 input instead of 1-channel MNIST.
+    """
+
+    def __init__(self, num_channels=3):
+        super(EnergyModel, self).__init__()
+        self.conv1 = nn.Conv2d(num_channels, 16, kernel_size=5, stride=2, padding=2)
+        self.conv2 = nn.Conv2d(16, 32, kernel_size=3, stride=2, padding=1)
+        self.conv3 = nn.Conv2d(32, 64, kernel_size=3, stride=2, padding=1)
+        self.conv4 = nn.Conv2d(64, 64, kernel_size=3, stride=2, padding=1)
+
+        self.flatten = nn.Flatten()
+        self.fc1 = nn.Linear(64 * 2 * 2, 64)
+        self.fc2 = nn.Linear(64, 1)
+
+    def forward(self, x):
+        x = swish(self.conv1(x))
+        x = swish(self.conv2(x))
+        x = swish(self.conv3(x))
+        x = swish(self.conv4(x))
+        x = self.flatten(x)
+        x = swish(self.fc1(x))
+        return self.fc2(x)
+
+
 class Generator(nn.Module):
     """Generator matching the Assignment 3 spec for 28x28x1 MNIST output:
     Linear(z_dim -> 7*7*128) -> reshape
@@ -127,9 +159,15 @@ _MODELS = {
 }
 
 
-def get_model(model_name, num_classes=10, z_dim=100):
+def get_model(model_name, num_classes=10, z_dim=100, num_channels=3, image_size=64):
     if model_name == "GAN":
         return Generator(z_dim=z_dim), Discriminator()
+    if model_name == "EBM":
+        return EnergyModel(num_channels=num_channels)
+    if model_name == "Diffusion":
+        return UNet(image_size=image_size, num_channels=num_channels)
     if model_name not in _MODELS:
-        raise ValueError(f"Unknown model_name '{model_name}'. Choose from {list(_MODELS) + ['GAN']}")
+        raise ValueError(
+            f"Unknown model_name '{model_name}'. Choose from {list(_MODELS) + ['GAN', 'EBM', 'Diffusion']}"
+        )
     return _MODELS[model_name](num_classes=num_classes)

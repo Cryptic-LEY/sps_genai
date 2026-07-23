@@ -10,7 +10,8 @@ from torchvision import transforms
 
 from app.bigram_model import BigramModel
 from helper_lib.data_loader import CLASSES
-from helper_lib.generator import generate_image_grid_png
+from helper_lib.diffusion import offset_cosine_diffusion_schedule
+from helper_lib.generator import generate_diffusion_grid_png, generate_ebm_grid_png, generate_image_grid_png
 from helper_lib.model import get_model
 from helper_lib.utils import get_device
 import spacy
@@ -49,6 +50,22 @@ gan_generator.load_state_dict(
 )
 gan_generator.to(device)
 gan_generator.eval()
+
+EBM_IMAGE_SIZE = 32
+ebm_model = get_model("EBM")
+ebm_model.load_state_dict(
+    torch.load("checkpoints_ebm/best/model.pth", map_location=device)["model_state_dict"]
+)
+ebm_model.to(device)
+ebm_model.eval()
+
+DIFFUSION_IMAGE_SIZE = 64
+diffusion_model = get_model("Diffusion")
+diffusion_model.load_state_dict(
+    torch.load("checkpoints_diffusion/best/unet_ema.pth", map_location=device)["model_state_dict"]
+)
+diffusion_model.to(device)
+diffusion_model.eval()
 
 
 class TextGenerationRequest(BaseModel):
@@ -89,4 +106,25 @@ async def classify_image(file: UploadFile = File(...)):
 @app.get("/generate-image")
 def generate_image(num_samples: int = 16):
     buf = generate_image_grid_png(gan_generator, device, num_samples=num_samples, z_dim=GAN_Z_DIM)
+    return StreamingResponse(buf, media_type="image/png")
+
+
+@app.get("/generate-ebm")
+def generate_ebm(num_samples: int = 16, steps: int = 256):
+    buf = generate_ebm_grid_png(
+        ebm_model, device, num_samples=num_samples, image_size=EBM_IMAGE_SIZE, steps=steps
+    )
+    return StreamingResponse(buf, media_type="image/png")
+
+
+@app.get("/generate-diffusion")
+def generate_diffusion(num_samples: int = 16, diffusion_steps: int = 20):
+    buf = generate_diffusion_grid_png(
+        diffusion_model,
+        offset_cosine_diffusion_schedule,
+        device,
+        num_samples=num_samples,
+        image_size=DIFFUSION_IMAGE_SIZE,
+        diffusion_steps=diffusion_steps,
+    )
     return StreamingResponse(buf, media_type="image/png")
