@@ -1,6 +1,6 @@
 # SPS GenAI
 
-FastAPI application with Bigram text generation, Spacy word embedding, a CNN image classifier (CIFAR10), a GAN handwritten digit generator (MNIST), an Energy-Based image generator (CIFAR10), and a Diffusion image generator (CIFAR10).
+FastAPI application with Bigram text generation, Spacy word embedding, a CNN image classifier (CIFAR10), a GAN handwritten digit generator (MNIST), an Energy-Based image generator (CIFAR10), a Diffusion image generator (CIFAR10), and an RL-post-trained word-chain generator constrained to a fixed answer format.
 
 ## Endpoints
 
@@ -11,6 +11,7 @@ FastAPI application with Bigram text generation, Spacy word embedding, a CNN ima
 - `GET /generate-image?num_samples={n}` — Returns a PNG grid of `n` GAN-generated handwritten digits
 - `GET /generate-ebm?num_samples={n}&steps={s}` — Returns a PNG grid of `n` CIFAR10-like images sampled via Langevin dynamics from an Energy-Based Model
 - `GET /generate-diffusion?num_samples={n}&diffusion_steps={s}` — Returns a PNG grid of `n` CIFAR10-like images sampled via reverse diffusion from a UNet
+- `GET /generate-formatted-text` — Returns a 5-word chain from the RL-post-trained policy, always starting with "group" and ending in a word that ends in "e"
 
 ## Run with Docker
 
@@ -67,6 +68,18 @@ schedule and an EMA shadow network, saving checkpoints to `checkpoints_diffusion
 including the best EMA weights at `checkpoints_diffusion/best/unet_ema.pth` used by
 the `/generate-diffusion` endpoint.
 
+## Post-train the word-chain generator with RL
+
+```bash
+uv run python train_rl_formatter.py
+```
+
+Starting from the Module 10 word-chain base model, uses REINFORCE (policy gradient)
+to post-train it so every generated chain follows a fixed format: it always starts
+with the word "group" and always ends with a word ending in "e". Saves the trained
+policy to `checkpoints_rl/best/policy.pth`, used by the `/generate-formatted-text`
+endpoint.
+
 ## Project Structure
 
 - `main.py` — FastAPI application and endpoints
@@ -76,4 +89,6 @@ the `/generate-diffusion` endpoint.
 - `train_gan.py` — Training script for the GAN
 - `train_ebm.py` — Training script for the Energy-Based Model
 - `train_diffusion.py` — Training script for the Diffusion Model
+- `helper_lib/rl_lm.py` — Word-chain base model, RL environment, and REINFORCE policy
+- `train_rl_formatter.py` — RL post-training script for the word-chain generator
 - `app/bigram_model.py` — Bigram text generation model

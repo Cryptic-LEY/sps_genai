@@ -13,6 +13,7 @@ from helper_lib.data_loader import CLASSES
 from helper_lib.diffusion import offset_cosine_diffusion_schedule
 from helper_lib.generator import generate_diffusion_grid_png, generate_ebm_grid_png, generate_image_grid_png
 from helper_lib.model import get_model
+from helper_lib.rl_lm import Environment, Policy, SimpleNet, build_vocab
 from helper_lib.utils import get_device
 import spacy
 
@@ -66,6 +67,25 @@ diffusion_model.load_state_dict(
 )
 diffusion_model.to(device)
 diffusion_model.eval()
+
+RL_VOCAB_SIZE = 1000
+RL_CONTEXT_SIZE = 3
+RL_HIDDEN_DIM = 256
+RL_MAX_SEQ_LENGTH = 5
+RL_START_WORD = "group"
+RL_END_LETTER = "e"
+
+rl_vocab, rl_word_to_idx, rl_idx_to_word = build_vocab(vocab_size=RL_VOCAB_SIZE)
+rl_env = Environment(
+    rl_word_to_idx, rl_idx_to_word, max_seq_length=RL_MAX_SEQ_LENGTH, end_letter=RL_END_LETTER, context_size=RL_CONTEXT_SIZE
+)
+rl_model = SimpleNet(input_dim=RL_CONTEXT_SIZE * RL_VOCAB_SIZE, hidden_dim=RL_HIDDEN_DIM, action_dim=RL_VOCAB_SIZE)
+rl_model.load_state_dict(
+    torch.load("checkpoints_rl/best/policy.pth", map_location=device)["model_state_dict"]
+)
+rl_model.to(device)
+rl_model.eval()
+rl_policy = Policy(rl_model, None, rl_env, rl_vocab, rl_idx_to_word, start_word=RL_START_WORD, batch_size=0)
 
 
 class TextGenerationRequest(BaseModel):
@@ -128,3 +148,9 @@ def generate_diffusion(num_samples: int = 16, diffusion_steps: int = 20):
         diffusion_steps=diffusion_steps,
     )
     return StreamingResponse(buf, media_type="image/png")
+
+
+@app.get("/generate-formatted-text")
+def generate_formatted_text():
+    chain = rl_policy.generate_chain()
+    return {"words": chain, "text": " ".join(chain)}

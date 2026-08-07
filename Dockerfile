@@ -10,6 +10,7 @@ RUN uv sync --frozen --no-dev
 COPY . .
 
 RUN uv run python -m spacy download en_core_web_md
+RUN uv run python -m nltk.downloader words
 
 EXPOSE 8000
 
